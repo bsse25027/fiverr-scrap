@@ -1,5 +1,5 @@
 .page {
-  max-width: 1180px;
+  max-width: 1380px;
   margin: 0 auto;
   padding: 22px;
 }
@@ -22,20 +22,43 @@
   color: var(--muted);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headerActions button,
+.badge {
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.headerActions button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.mediaOn {
+  border-color: var(--green) !important;
+  background: #effcf6 !important;
+  color: #087443;
+}
+
 .badge {
   border: 1px solid rgba(29, 191, 115, 0.35);
   background: #effcf6;
   color: #087443;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-weight: 700;
 }
 
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .stats div {
@@ -58,11 +81,219 @@
   font-size: 25px;
 }
 
+.layout {
+  display: grid;
+  grid-template-columns: minmax(330px, 430px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.gigsPanel,
+.reviewsPanel {
+  min-width: 0;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.gigList {
+  display: grid;
+  gap: 10px;
+  max-height: calc(100vh - 190px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.gigCard {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.selectedGig {
+  border-color: var(--green);
+}
+
+.gigSelect {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gigMedia {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  aspect-ratio: 4 / 3;
+  background: linear-gradient(135deg, #eef2f7, #fafafa);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: #475467;
+  font-weight: 900;
+  overflow: hidden;
+}
+
+.gigMedia img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gigBody {
+  min-width: 0;
+}
+
+.gigBody h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.gigBody p {
+  display: -webkit-box;
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.sellerLine {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sellerAvatar,
+.buyerAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #eef2f7;
+  border: 1px solid var(--line);
+  color: #475467;
+  font-weight: 900;
+  overflow: hidden;
+}
+
+.sellerAvatar {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+.sellerAvatar img,
+.buyerAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gigMeta {
+  display: block;
+  margin-top: 8px;
+  color: #087443;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.gigCardActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding: 8px 10px;
+}
+
+.gigCardActions a,
+.gigCardActions button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 7px;
+  color: #344054;
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.gigCardActions button {
+  color: var(--red);
+}
+
+.gigHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+
+.kicker {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.gigHeader h2 {
+  margin: 4px 0;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.gigHeader p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.openGig {
+  border: 1px solid var(--blue);
+  border-radius: 7px;
+  color: var(--blue);
+  font-weight: 800;
+  min-height: 38px;
+  padding: 9px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .toolbar {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .toolbar input {
@@ -70,6 +301,7 @@
   border-radius: 7px;
   height: 40px;
   padding: 0 12px;
+  min-width: 0;
 }
 
 .filters {
@@ -95,7 +327,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 12px;
 }
 
@@ -105,6 +337,7 @@
   border-radius: 8px;
   padding: 14px;
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
 .card.done {
@@ -114,20 +347,17 @@
 
 .person {
   display: grid;
-  grid-template-columns: 56px 1fr auto;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
 }
 
-.person img {
+.buyerAvatar {
   width: 56px;
   height: 56px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--line);
 }
 
-.person h2 {
+.person h3 {
   margin: 0;
   font-size: 17px;
   word-break: break-word;
@@ -145,24 +375,64 @@
   color: white;
 }
 
+.actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.actions a,
+.disabledAction {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  min-height: 36px;
+  padding: 6px 8px;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.actions a:hover {
+  border-color: #1d4ed8;
+  background: #f5f9ff;
+}
+
+.disabledAction {
+  color: var(--muted);
+  background: #f6f7f9;
+}
+
 .review {
   margin: 12px 0;
   color: #2f3540;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .meta {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   color: var(--muted);
   font-size: 12px;
 }
 
-.meta a {
-  color: var(--blue);
-  font-weight: 700;
-  text-decoration: none;
+.meta button {
+  border: 1px solid rgba(180, 35, 24, 0.25);
+  background: #fff7f6;
+  color: var(--red);
+  border-radius: 7px;
+  min-height: 32px;
+  padding: 6px 10px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .empty {
@@ -174,14 +444,61 @@
   color: var(--muted);
 }
 
+@media (max-width: 1050px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gigList {
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    max-height: none;
+    padding-right: 0;
+  }
+}
+
 @media (max-width: 760px) {
   .header,
-  .toolbar {
-    grid-template-columns: 1fr;
+  .toolbar,
+  .gigHeader {
     display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .headerActions {
+    justify-content: flex-start;
   }
 
   .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gigList,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gigSelect {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .gigMedia {
+    width: 92px;
+  }
+
+  .person {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .buyerAvatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .person button {
+    grid-column: 1 / -1;
+  }
+
+  .actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

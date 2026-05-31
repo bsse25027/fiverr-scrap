@@ -1,11 +1,11 @@
 /**
  * Paste this whole file into Chrome DevTools Console while you are on a Fiverr gig page.
  *
- * It clicks "Show More Reviews" up to MAX_CLICKS times, then extracts visible buyer
- * reviews from ul.review-list > li.review-item-component and downloads JSON.
- *
- * Important: this version only keeps reviews where the BUYER has a real profile image.
- * It ignores seller-response avatars/images.
+ * Flow:
+ * 1. Read the current gig metadata from the page.
+ * 2. Click "Show More Reviews" up to MAX_CLICKS times.
+ * 3. Extract visible buyer reviews with buyer profile images only.
+ * 4. Download JSON and POST it to your dashboard.
  *
  * It does not solve CAPTCHA or bypass blocks. If Fiverr shows a block/challenge,
  * stop and do not keep retrying.
@@ -19,6 +19,147 @@
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const clean = (value) => (value || "").replace(/\s+/g, " ").trim();
+
+  function normalizeFiverrImageUrl(url) {
+    if (!url) return null;
+
+    return url
+      .replace("/f_auto,q_auto,t_profile_small/", "/")
+      .replace("/f_auto,q_auto,t_profile_original/", "/")
+      .replace("/f_auto,q_auto/", "/")
+      .replace(/\/{2,}/g, (match, offset, full) => {
+        return full.slice(Math.max(0, offset - 6), offset) === "https:" ? "//" : "/";
+      });
+  }
+
+  function normalizePageUrl(url) {
+    const parsed = new URL(url, location.href);
+    parsed.hash = "";
+    return `${parsed.origin}${parsed.pathname}`;
+  }
+
+  function getInitialProps() {
+    const script = document.querySelector("script#perseus-initial-props");
+    if (!script?.textContent) return null;
+
+    try {
+      return JSON.parse(script.textContent);
+    } catch {
+      return null;
+    }
+  }
+
+  function walk(value, visitor, seen = new Set()) {
+    if (!value || typeof value !== "object" || seen.has(value)) return null;
+    seen.add(value);
+
+    const result = visitor(value);
+    if (result) return result;
+
+    for (const child of Object.values(value)) {
+      const childResult = walk(child, visitor, seen);
+      if (childResult) return childResult;
+    }
+
+    return null;
+  }
+
+  function findGigData(props) {
+    const slug = location.pathname.split("/").filter(Boolean).at(-1);
+    if (!props) return null;
+
+    return walk(props, (item) => {
+      const hasGigId = item.gig_id || item.gigId || item.id;
+      const itemSlug = item.cached_slug || item.slug;
+      const itemUrl = item.gig_url || item.url;
+      const looksLikeCurrentGig =
+        itemSlug === slug ||
+        (typeof itemUrl === "string" && itemUrl.endsWith(`/${slug}`)) ||
+        (item.title && (item.description || item.gig_id || item.cached_slug));
+
+      return hasGigId && looksLikeCurrentGig ? item : null;
+    });
+  }
+
+  function findFirstStringByKey(value, keyNames) {
+    return walk(value, (item) => {
+      for (const keyName of keyNames) {
+        const found = item[keyName];
+        if (typeof found === "string" && clean(found)) return found;
+      }
+      return null;
+    });
+  }
+
+  function findGigImageFromData(gigData) {
+    const image = findFirstStringByKey(gigData, [
+      "gig_image_url",
+      "gigImageUrl",
+      "thumbnail_url",
+      "thumbnailUrl",
+      "image_url",
+      "imageUrl",
+      "src"
+    ]);
+    return normalizeFiverrImageUrl(image);
+  }
+
+  function findSellerImageFromData(gigData) {
+    const image = findFirstStringByKey(gigData, [
+      "seller_profile_image_url",
+      "sellerProfileImageUrl",
+      "profile_image_url",
+      "profileImageUrl",
+      "avatar_url",
+      "avatarUrl"
+    ]);
+    return normalizeFiverrImageUrl(image);
+  }
+
+  function findHeroImageFromDom() {
+    const images = [...document.querySelectorAll("img")]
+      .map((image) => image.currentSrc || image.src || "")
+      .filter((src) => {
+        if (!src) return false;
+        if (/flags|profile|avatar|user/i.test(src)) return false;
+        return /fiverr-res\.cloudinary\.com|cloudinary/i.test(src);
+      });
+
+    return normalizeFiverrImageUrl(images[0] || null);
+  }
+
+  function findSellerImageFromDom() {
+    const images = [...document.querySelectorAll("img")]
+      .map((image) => image.currentSrc || image.src || "")
+      .filter((src) => /profile|attachments\/profile|profile\/photos/i.test(src));
+
+    return normalizeFiverrImageUrl(images[0] || null);
+  }
+
+  function extractGig() {
+    const props = getInitialProps();
+    const gigData = findGigData(props);
+    const [sellerFromUrl, slug] = location.pathname.split("/").filter(Boolean);
+    const gigUrl = normalizePageUrl(location.href);
+    const gigKey = String(gigData?.gig_id || gigData?.gigId || gigData?.id || `${sellerFromUrl}-${slug}`);
+
+    return {
+      gigKey,
+      gigUrl,
+      title: clean(gigData?.title) || clean(document.querySelector("h1")?.innerText) || slug,
+      sellerUsername:
+        clean(gigData?.seller?.username) ||
+        clean(gigData?.seller_username) ||
+        clean(gigData?.sellerUsername) ||
+        sellerFromUrl,
+      sellerProfileImageUrl: findSellerImageFromData(gigData) || findSellerImageFromDom(),
+      gigImageUrl: findGigImageFromData(gigData) || findHeroImageFromDom(),
+      description:
+        clean(gigData?.description) ||
+        clean(document.querySelector("[data-testid*='description'], .gig-description, article")?.innerText),
+      raw: gigData || null,
+    };
+  }
 
   function isBlocked() {
     const text = document.body.innerText.toLowerCase();
@@ -93,26 +234,11 @@
         const rect = image.getBoundingClientRect();
         const distanceFromReviewTop = rect.top - reviewRect.top;
 
-        // Buyer avatar is in the review header. Seller avatar is lower, inside
-        // the "Seller's Response" block, so keep only images before that area.
         return distanceFromReviewTop >= -5 && distanceFromReviewTop <= 130 && rect.top < sellerResponseTop;
       })
       .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
 
     return normalizeFiverrImageUrl(buyerImages[0]?.currentSrc || buyerImages[0]?.src || null);
-  }
-
-  function normalizeFiverrImageUrl(url) {
-    if (!url) return null;
-
-    return url
-      .replace("/f_auto,q_auto,t_profile_small/", "/")
-      .replace("/f_auto,q_auto,t_profile_original/", "/")
-      .replace("/f_auto,q_auto/", "/")
-      .replace(/\/{2,}/g, (match, offset, full) => {
-        // Keep the protocol slash in https://.
-        return full.slice(Math.max(0, offset - 6), offset) === "https:" ? "//" : "/";
-      });
   }
 
   function getUsername(reviewEl) {
@@ -159,7 +285,7 @@
     return unique.sort((a, b) => b.length - a.length)[0] || null;
   }
 
-  function extractReviews() {
+  function extractReviews(gigUrl) {
     const reviewNodes = [
       ...document.querySelectorAll("ul.review-list li.review-item-component"),
     ];
@@ -187,6 +313,7 @@
           country,
           rating,
           review,
+          gigUrl,
         };
       })
       .filter(Boolean);
@@ -204,13 +331,17 @@
     URL.revokeObjectURL(url);
   }
 
+  const gig = extractGig();
+  console.log("Gig detected:", gig);
+
   await clickShowMoreReviews();
 
   const result = {
-    url: location.href,
+    url: gig.gigUrl,
     extractedAt: new Date().toISOString(),
+    gig,
     count: 0,
-    reviews: extractReviews(),
+    reviews: extractReviews(gig.gigUrl),
   };
 
   result.reviews = [
@@ -222,7 +353,7 @@
 
   const json = JSON.stringify(result, null, 2);
   console.log(json);
-  downloadJson(`fiverr-buyer-reviews-${Date.now()}.json`, json);
+  downloadJson(`fiverr-gig-${gig.gigKey}-buyer-reviews-${Date.now()}.json`, json);
   console.log(`Downloaded ${result.count} buyer reviews with profile images as JSON.`);
 
   try {
