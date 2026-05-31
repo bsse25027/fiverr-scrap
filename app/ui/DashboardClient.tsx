@@ -143,13 +143,13 @@ export default function DashboardClient({
     }
   }, [gigs, selectedGigKey]);
 
-  function toggleDone(username: string, done: boolean) {
+  function toggleDone(id: number, done: boolean) {
     setBuyers((current) =>
-      current.map((buyer) => buyer.username === username ? { ...buyer, done } : buyer)
+      current.map((buyer) => buyer.id === id ? { ...buyer, done } : buyer)
     );
 
     startTransition(async () => {
-      const response = await fetch(`/api/reviews/${encodeURIComponent(username)}`, {
+      const response = await fetch(`/api/reviews/item/${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ done })
@@ -157,7 +157,7 @@ export default function DashboardClient({
 
       if (!response.ok) {
         setBuyers((current) =>
-          current.map((buyer) => buyer.username === username ? { ...buyer, done: !done } : buyer)
+          current.map((buyer) => buyer.id === id ? { ...buyer, done: !done } : buyer)
         );
       }
     });
@@ -341,7 +341,7 @@ export default function DashboardClient({
                         </div>
                         <button
                           className={buyer.done ? styles.doneButton : ""}
-                          onClick={() => toggleDone(buyer.username, !buyer.done)}
+                          onClick={() => toggleDone(buyer.id, !buyer.done)}
                         >
                           {buyer.done ? "Done" : "Mark Done"}
                         </button>

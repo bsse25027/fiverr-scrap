@@ -52,6 +52,9 @@ alter table public.fiverr_review_buyers
 alter table public.fiverr_review_buyers
   drop constraint if exists fiverr_review_buyers_username_key;
 
+drop index if exists public.fiverr_review_buyers_username_key;
+drop index if exists public.fiverr_review_buyers_username_idx;
+
 alter table public.fiverr_review_buyers
   drop constraint if exists fiverr_review_buyers_gig_key_fkey;
 

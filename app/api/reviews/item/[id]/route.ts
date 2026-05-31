@@ -1,6 +1,31 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+export async function PATCH(
+  request: Request,
+  context: { params: { id: string } }
+) {
+  const id = Number(context.params.id);
+  const body = (await request.json().catch(() => ({}))) as { done?: unknown };
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json({ error: "Invalid review id" }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("fiverr_review_buyers")
+    .update({ done: Boolean(body.done), last_seen_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, buyer: data });
+}
+
 export async function DELETE(
   _request: Request,
   context: { params: { id: string } }
