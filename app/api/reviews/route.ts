@@ -10,6 +10,45 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "content-type"
 };
 
+const STORAGE_BUCKET = "fiverr-images";
+
+async function uploadImageToStorage(remoteUrl: string, pathPrefix: string): Promise<string | null> {
+  if (!remoteUrl) return null;
+
+  try {
+    const response = await fetch(remoteUrl, { cache: "no-store" });
+    if (!response.ok) return null;
+
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const ext = contentType.split("/")[1]?.split(";")[0] || "jpg";
+
+    // Deterministic filename based on URL so re-uploads deduplicate
+    const hash = Buffer.from(remoteUrl).toString("base64url").slice(0, 64);
+    const storagePath = `${pathPrefix}/${hash}.${ext}`;
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const { error } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, buffer, {
+        contentType,
+        upsert: true
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error.message);
+      return null;
+    }
+
+    const { data } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
+    return data.publicUrl ?? null;
+  } catch (err) {
+    console.error("uploadImageToStorage failed:", err);
+    return null;
+  }
+}
+
 type IncomingGig = {
   gigKey?: unknown;
   gig_key?: unknown;
@@ -96,6 +135,7 @@ function normalizeGig(input: IncomingGig | undefined, sourceUrl: string) {
     gig_url: gigUrl || "unknown",
     title: asString(input?.title) || null,
     seller_username: asString(input?.sellerUsername) || asString(input?.seller_username) || null,
+    // raw Fiverr URLs — will be replaced with storage URLs before DB insert
     seller_profile_image_url: normalizeImageUrl(
       asString(input?.sellerProfileImageUrl) || asString(input?.seller_profile_image_url)
     ) || null,
@@ -108,6 +148,7 @@ function normalizeGig(input: IncomingGig | undefined, sourceUrl: string) {
 
 function normalizeReview(item: IncomingReview, sourceUrl: string, gigKey: string, gigUrl: string) {
   const username = asString(item.username);
+  // raw Fiverr URL — will be replaced with storage URL before DB insert
   const profileImageUrl = normalizeImageUrl(
     asString(item.profileImageUrl) || asString(item.profile_image_url)
   );
@@ -173,9 +214,25 @@ export async function POST(request: Request) {
   const gig = normalizeGig(body.gig, sourceUrl);
   const incomingReviews = Array.isArray(body.reviews) ? body.reviews : [];
 
+  // Upload gig images to storage before saving
+  const [sellerProfileStorageUrl, gigImageStorageUrl] = await Promise.all([
+    gig.seller_profile_image_url
+      ? uploadImageToStorage(gig.seller_profile_image_url, `sellers/${gig.gig_key}`)
+      : Promise.resolve(null),
+    gig.gig_image_url
+      ? uploadImageToStorage(gig.gig_image_url, `gigs/${gig.gig_key}`)
+      : Promise.resolve(null),
+  ]);
+
+  const gigRow = {
+    ...gig,
+    seller_profile_image_url: sellerProfileStorageUrl ?? gig.seller_profile_image_url,
+    gig_image_url: gigImageStorageUrl ?? gig.gig_image_url,
+  };
+
   const { error: gigError } = await supabaseAdmin
     .from("fiverr_gigs")
-    .upsert(gig, {
+    .upsert(gigRow, {
       onConflict: "gig_key",
       ignoreDuplicates: false
     });
@@ -187,16 +244,30 @@ export async function POST(request: Request) {
   const normalizedRows = incomingReviews
     .map((item) => normalizeReview(item, sourceUrl, gig.gig_key, gig.gig_url))
     .filter(isReviewRow);
-  const rows = Array.from(
+  const deduped = Array.from(
     new Map(normalizedRows.map((row) => [`${row.gig_key}|${row.username.toLowerCase()}`, row])).values()
   );
 
-  if (!rows.length) {
+  if (!deduped.length) {
     return NextResponse.json(
       { error: "Gig saved, but no valid reviews were found. Each review needs username and profileImageUrl." },
       { status: 400, headers: corsHeaders }
     );
   }
+
+  // Upload each buyer profile image to storage in parallel
+  const rows = await Promise.all(
+    deduped.map(async (row) => {
+      const storageUrl = await uploadImageToStorage(
+        row.profile_image_url,
+        `buyers/${gig.gig_key}`
+      );
+      return {
+        ...row,
+        profile_image_url: storageUrl ?? row.profile_image_url,
+      };
+    })
+  );
 
   const { data, error } = await supabaseAdmin
     .from("fiverr_review_buyers")
@@ -218,7 +289,7 @@ export async function POST(request: Request) {
       title: gig.title
     },
     received: incomingReviews.length,
-    deduped: rows.length,
+    deduped: deduped.length,
     saved: data?.length ?? rows.length
   }, { headers: corsHeaders });
 }
