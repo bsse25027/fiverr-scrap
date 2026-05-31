@@ -1,7 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import DashboardClient from "./ui/DashboardClient";
+import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export type Buyer = {
   id: number;
@@ -18,6 +21,8 @@ export type Buyer = {
 };
 
 export default async function Page() {
+  noStore();
+
   const { data, error } = await supabaseAdmin
     .from("fiverr_review_buyers")
     .select("*")

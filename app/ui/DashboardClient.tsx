@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Buyer } from "../page";
 import styles from "./DashboardClient.module.css";
 
@@ -29,6 +29,26 @@ export default function DashboardClient({ initialBuyers }: { initialBuyers: Buye
   }, [buyers, filter, query]);
 
   const doneCount = buyers.filter((buyer) => buyer.done).length;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshBuyers() {
+      const response = await fetch("/api/reviews", { cache: "no-store" });
+      if (!response.ok) return;
+
+      const data = (await response.json()) as { buyers?: Buyer[] };
+      if (!cancelled && Array.isArray(data.buyers)) {
+        setBuyers(data.buyers);
+      }
+    }
+
+    refreshBuyers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function toggleDone(username: string, done: boolean) {
     setBuyers((current) =>

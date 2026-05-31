@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "content-type"
 };
 
@@ -55,6 +58,24 @@ type ReviewRow = NonNullable<ReturnType<typeof normalizeReview>>;
 
 function isReviewRow(row: ReturnType<typeof normalizeReview>): row is ReviewRow {
   return row !== null;
+}
+
+export async function GET() {
+  const { data, error } = await supabaseAdmin
+    .from("fiverr_review_buyers")
+    .select("*")
+    .order("last_seen_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
+  }
+
+  return NextResponse.json({ buyers: data || [] }, {
+    headers: {
+      ...corsHeaders,
+      "Cache-Control": "no-store, no-cache, must-revalidate"
+    }
+  });
 }
 
 export async function POST(request: Request) {
