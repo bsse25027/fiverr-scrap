@@ -25,6 +25,8 @@ type IncomingGig = {
   gigImageUrl?: unknown;
   gig_image_url?: unknown;
   description?: unknown;
+  aboutThisGig?: unknown;
+  about_this_gig?: unknown;
 };
 
 type IncomingReview = {
@@ -76,13 +78,18 @@ function getFallbackGigKey(gigUrl: string) {
 
 function normalizeGig(input: IncomingGig | undefined, sourceUrl: string) {
   const gigUrl = normalizeGigUrl(asString(input?.gigUrl) || asString(input?.gig_url) || sourceUrl);
-  const rawGigKey =
+  const fallbackGigKey = getFallbackGigKey(gigUrl);
+  const providedGigKey =
     asString(input?.gigKey) ||
     asString(input?.gig_key) ||
     asString(input?.gigId) ||
-    asString(input?.gig_id) ||
-    getFallbackGigKey(gigUrl);
-  const gigKey = rawGigKey || "unknown";
+    asString(input?.gig_id);
+  const gigKey = fallbackGigKey !== "unknown" ? fallbackGigKey : providedGigKey || "unknown";
+  const description =
+    asString(input?.aboutThisGig) ||
+    asString(input?.about_this_gig) ||
+    asString(input?.description) ||
+    null;
 
   return {
     gig_key: gigKey,
@@ -93,7 +100,7 @@ function normalizeGig(input: IncomingGig | undefined, sourceUrl: string) {
       asString(input?.sellerProfileImageUrl) || asString(input?.seller_profile_image_url)
     ) || null,
     gig_image_url: normalizeImageUrl(asString(input?.gigImageUrl) || asString(input?.gig_image_url)) || null,
-    description: asString(input?.description) || null,
+    description,
     raw: input || {},
     last_seen_at: new Date().toISOString()
   };

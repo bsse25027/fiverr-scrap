@@ -38,6 +38,23 @@
     return `${parsed.origin}${parsed.pathname}`;
   }
 
+  function getUrlParts() {
+    const [sellerFromUrl = "unknown-seller", slug = "unknown-gig"] = location.pathname
+      .split("/")
+      .filter(Boolean);
+
+    return { sellerFromUrl, slug };
+  }
+
+  function getGigKeyFromUrl() {
+    const { sellerFromUrl, slug } = getUrlParts();
+    return `${sellerFromUrl}-${slug}`.toLowerCase();
+  }
+
+  function getMetaContent(selector) {
+    return clean(document.querySelector(selector)?.getAttribute("content"));
+  }
+
   function getInitialProps() {
     const script = document.querySelector("script#perseus-initial-props");
     if (!script?.textContent) return null;
@@ -69,15 +86,14 @@
     if (!props) return null;
 
     return walk(props, (item) => {
-      const hasGigId = item.gig_id || item.gigId || item.id;
+      const hasRealGigId = item.gig_id || item.gigId;
       const itemSlug = item.cached_slug || item.slug;
       const itemUrl = item.gig_url || item.url;
       const looksLikeCurrentGig =
         itemSlug === slug ||
-        (typeof itemUrl === "string" && itemUrl.endsWith(`/${slug}`)) ||
-        (item.title && (item.description || item.gig_id || item.cached_slug));
+        (typeof itemUrl === "string" && itemUrl.endsWith(`/${slug}`));
 
-      return hasGigId && looksLikeCurrentGig ? item : null;
+      return hasRealGigId && looksLikeCurrentGig ? item : null;
     });
   }
 
@@ -117,6 +133,9 @@
   }
 
   function findHeroImageFromDom() {
+    const ogImage = getMetaContent("meta[property='og:image']");
+    if (ogImage) return normalizeFiverrImageUrl(ogImage);
+
     const images = [...document.querySelectorAll("img")]
       .map((image) => image.currentSrc || image.src || "")
       .filter((src) => {
@@ -136,17 +155,65 @@
     return normalizeFiverrImageUrl(images[0] || null);
   }
 
+  function getTextNearHeading(labels) {
+    const headings = [...document.querySelectorAll("h1, h2, h3, h4, strong, b, span")];
+    const heading = headings.find((node) => {
+      const text = clean(node.innerText).toLowerCase();
+      return labels.some((label) => text === label || text.includes(label));
+    });
+
+    if (!heading) return null;
+
+    const section = heading.closest("section, article, div");
+    const candidates = [
+      section,
+      heading.parentElement,
+      heading.parentElement?.nextElementSibling,
+      heading.nextElementSibling,
+    ].filter(Boolean);
+
+    const text = candidates
+      .map((node) => clean(node.innerText).replace(clean(heading.innerText), "").trim())
+      .filter((value) => value.length > 40)
+      .sort((a, b) => b.length - a.length)[0];
+
+    return text || null;
+  }
+
+  function getGigTitle(gigData) {
+    const h1 = clean(document.querySelector("h1")?.innerText);
+    const ogTitle = getMetaContent("meta[property='og:title']");
+    const pageTitle = clean(document.title);
+
+    return (
+      h1 ||
+      ogTitle.replace(/^.*?:\s*I will\s*/i, "I will ").replace(/\s+on fiverr\.com$/i, "") ||
+      pageTitle.replace(/\s+by\s+.*?\s+\|\s+Fiverr$/i, "") ||
+      clean(gigData?.title)
+    );
+  }
+
+  function getAboutThisGig(gigData) {
+    return (
+      getTextNearHeading(["about this gig", "about the gig", "description"]) ||
+      clean(gigData?.description) ||
+      getMetaContent("meta[property='og:description']") ||
+      getMetaContent("meta[name='description']")
+    );
+  }
+
   function extractGig() {
     const props = getInitialProps();
     const gigData = findGigData(props);
-    const [sellerFromUrl, slug] = location.pathname.split("/").filter(Boolean);
+    const { sellerFromUrl, slug } = getUrlParts();
     const gigUrl = normalizePageUrl(location.href);
-    const gigKey = String(gigData?.gig_id || gigData?.gigId || gigData?.id || `${sellerFromUrl}-${slug}`);
+    const gigKey = getGigKeyFromUrl();
+    const aboutThisGig = getAboutThisGig(gigData);
 
     return {
       gigKey,
       gigUrl,
-      title: clean(gigData?.title) || clean(document.querySelector("h1")?.innerText) || slug,
+      title: getGigTitle(gigData) || slug,
       sellerUsername:
         clean(gigData?.seller?.username) ||
         clean(gigData?.seller_username) ||
@@ -154,10 +221,13 @@
         sellerFromUrl,
       sellerProfileImageUrl: findSellerImageFromData(gigData) || findSellerImageFromDom(),
       gigImageUrl: findGigImageFromData(gigData) || findHeroImageFromDom(),
-      description:
-        clean(gigData?.description) ||
-        clean(document.querySelector("[data-testid*='description'], .gig-description, article")?.innerText),
-      raw: gigData || null,
+      description: aboutThisGig,
+      aboutThisGig,
+      raw: {
+        urlGigKey: gigKey,
+        embeddedGigId: gigData?.gig_id || gigData?.gigId || null,
+        embeddedGigData: gigData || null,
+      },
     };
   }
 
