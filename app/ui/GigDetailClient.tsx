@@ -1,0 +1,282 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
+import type { Buyer, Gig } from "../types";
+import styles from "./DashboardClient.module.css";
+
+type Filter = "all" | "todo" | "done";
+
+const LINKEDIN_GEO_URNS: Record<string, string> = {
+  australia: "101452733",
+  belgium: "100565514",
+  brazil: "106057199",
+  canada: "101174742",
+  cyprus: "106774002",
+  denmark: "104514075",
+  egypt: "106155005",
+  france: "105015875",
+  germany: "101282230",
+  india: "102713980",
+  ireland: "104738515",
+  italy: "103350119",
+  netherlands: "102890719",
+  pakistan: "101022442",
+  qatar: "104170880",
+  "saudi arabia": "100459316",
+  spain: "105646813",
+  switzerland: "106693272",
+  "united arab emirates": "104305776",
+  "united kingdom": "101165590",
+  "united states": "103644278"
+};
+
+function getTitle(gig: Gig) {
+  if (gig.title) return gig.title;
+
+  try {
+    const slug = new URL(gig.gig_url).pathname.split("/").filter(Boolean).at(-1) || gig.gig_key;
+    return slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  } catch {
+    return gig.gig_key;
+  }
+}
+
+function getInitials(value: string | null | undefined) {
+  const text = (value || "?").trim();
+  const words = text.split(/\s+/);
+  return words.length > 1 ? `${words[0][0]}${words[1][0]}`.toUpperCase() : text.slice(0, 2).toUpperCase();
+}
+
+function googleUrl(username: string) {
+  return `https://www.google.com/search?q=${encodeURIComponent(`"${username}"`)}`;
+}
+
+function lensUrl(imageUrl: string) {
+  return `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(imageUrl)}`;
+}
+
+function linkedinUrl(username: string) {
+  return `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(username)}&origin=GLOBAL_SEARCH_HEADER`;
+}
+
+function linkedinLocationUrl(username: string, country: string | null) {
+  const geoUrn = country ? LINKEDIN_GEO_URNS[country.toLowerCase()] : null;
+  if (!geoUrn) return null;
+  return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(username)}&origin=FACETED_SEARCH&geoUrn=${encodeURIComponent(JSON.stringify([geoUrn]))}`;
+}
+
+export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; initialBuyers: Buyer[] }) {
+  const [buyers, setBuyers] = useState(initialBuyers);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [loadMedia, setLoadMedia] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const filteredBuyers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    return buyers.filter((buyer) => {
+      if (filter === "done" && !buyer.done) return false;
+      if (filter === "todo" && buyer.done) return false;
+      if (!q) return true;
+
+      return [
+        buyer.username,
+        buyer.country || "",
+        buyer.review || ""
+      ].join(" ").toLowerCase().includes(q);
+    });
+  }, [buyers, filter, query]);
+
+  const doneCount = buyers.filter((buyer) => buyer.done).length;
+  const pendingCount = buyers.length - doneCount;
+  const avgRating = buyers.length
+    ? buyers.reduce((sum, buyer) => sum + Number(buyer.rating || 0), 0) / buyers.length
+    : 0;
+  const countries = new Set(buyers.map((buyer) => buyer.country).filter(Boolean)).size;
+
+  function toggleDone(id: number, done: boolean) {
+    setBuyers((current) => current.map((buyer) => buyer.id === id ? { ...buyer, done } : buyer));
+
+    startTransition(async () => {
+      const response = await fetch(`/api/reviews/item/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ done })
+      });
+
+      if (!response.ok) {
+        setBuyers((current) => current.map((buyer) => buyer.id === id ? { ...buyer, done: !done } : buyer));
+      }
+    });
+  }
+
+  function deleteReview(id: number) {
+    const previous = buyers;
+    setBuyers((current) => current.filter((buyer) => buyer.id !== id));
+
+    startTransition(async () => {
+      const response = await fetch(`/api/reviews/item/${id}`, { method: "DELETE" });
+      if (!response.ok) setBuyers(previous);
+    });
+  }
+
+  return (
+    <main className={styles.pageShell}>
+      <header className={styles.detailTopbar}>
+        <div>
+          <Link className={styles.backLink} href="/">Back to gigs</Link>
+          <h1>{getTitle(gig)}</h1>
+          <p>{gig.seller_username || "Unknown seller"} - {buyers.length} saved buyer reviews</p>
+        </div>
+        <div className={styles.detailTopActions}>
+          <button className={loadMedia ? styles.mediaToggleOn : styles.mediaToggle} onClick={() => setLoadMedia((value) => !value)}>
+            {loadMedia ? "Media on" : "Load media"}
+          </button>
+          <span className={isPending ? styles.savingBadge : styles.liveBadge}>{isPending ? "Saving" : "Live"}</span>
+        </div>
+      </header>
+
+      <section className={styles.gigDetailHero}>
+        <div className={styles.heroMedia}>
+          {loadMedia && gig.gig_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={gig.gig_image_url} alt={getTitle(gig)} />
+          ) : (
+            <span>{getInitials(gig.title || gig.seller_username)}</span>
+          )}
+        </div>
+
+        <div className={styles.heroBody}>
+          <div className={styles.sellerRowLarge}>
+            <div className={styles.avatarLarge}>
+              {loadMedia && gig.seller_profile_image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={gig.seller_profile_image_url} alt={gig.seller_username || "Seller"} />
+              ) : (
+                getInitials(gig.seller_username)
+              )}
+            </div>
+            <div>
+              <strong>{gig.seller_username || "Unknown seller"}</strong>
+              <span>Seller profile</span>
+            </div>
+          </div>
+
+          <div className={styles.heroMetrics}>
+            <div>
+              <span>Reviews</span>
+              <strong>{buyers.length}</strong>
+            </div>
+            <div>
+              <span>Done</span>
+              <strong>{doneCount}</strong>
+            </div>
+            <div>
+              <span>Pending</span>
+              <strong>{pendingCount}</strong>
+            </div>
+            <div>
+              <span>Countries</span>
+              <strong>{countries}</strong>
+            </div>
+            <div>
+              <span>Avg Rating</span>
+              <strong>{avgRating ? avgRating.toFixed(1) : "-"}</strong>
+            </div>
+          </div>
+
+          {gig.gig_url !== "unknown" ? (
+            <a className={styles.openGigButton} href={gig.gig_url} target="_blank" rel="noopener noreferrer">
+              Open original gig
+            </a>
+          ) : null}
+        </div>
+      </section>
+
+      <section className={styles.aboutPanel}>
+        <h2>About this gig</h2>
+        <p>{gig.description || "No about section has been saved for this gig yet. Re-run the updated console script on this gig page to capture it."}</p>
+      </section>
+
+      <section className={styles.reviewsSection}>
+        <div className={styles.toolbar}>
+          <div>
+            <h2>Reviews for this gig</h2>
+            <p>{filteredBuyers.length} visible from {buyers.length} saved</p>
+          </div>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search username, country, review"
+          />
+          <div className={styles.filterGroup}>
+            {(["all", "todo", "done"] as Filter[]).map((item) => (
+              <button
+                key={item}
+                className={filter === item ? styles.filterActive : ""}
+                onClick={() => setFilter(item)}
+              >
+                {item === "todo" ? "Pending" : item === "done" ? "Done" : "All"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {!filteredBuyers.length ? (
+          <div className={styles.emptyState}>
+            <strong>No reviews found</strong>
+            <span>Try another filter or scrape more reviews for this gig.</span>
+          </div>
+        ) : (
+          <div className={styles.reviewGrid}>
+            {filteredBuyers.map((buyer) => {
+              const locationUrl = linkedinLocationUrl(buyer.username, buyer.country);
+
+              return (
+                <article key={buyer.id} className={buyer.done ? styles.reviewCardDone : styles.reviewCard}>
+                  <div className={styles.reviewHead}>
+                    <div className={styles.buyerAvatar}>
+                      {loadMedia && buyer.profile_image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={buyer.profile_image_url} alt={buyer.username} />
+                      ) : (
+                        getInitials(buyer.username)
+                      )}
+                    </div>
+                    <div>
+                      <h3>{buyer.username}</h3>
+                      <p>{[buyer.country, buyer.rating ? `${buyer.rating} stars` : ""].filter(Boolean).join(" - ")}</p>
+                    </div>
+                    <button className={buyer.done ? styles.doneButton : styles.markButton} onClick={() => toggleDone(buyer.id, !buyer.done)}>
+                      {buyer.done ? "Done" : "Mark done"}
+                    </button>
+                  </div>
+
+                  <p className={styles.reviewText}>{buyer.review || "No review text captured."}</p>
+
+                  <div className={styles.actionGrid}>
+                    <a href={lensUrl(buyer.profile_image_url)} target="_blank" rel="noopener noreferrer">Google Lens</a>
+                    <a href={googleUrl(buyer.username)} target="_blank" rel="noopener noreferrer">Google Name</a>
+                    <a href={linkedinUrl(buyer.username)} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                    {locationUrl ? (
+                      <a href={locationUrl} target="_blank" rel="noopener noreferrer">LinkedIn Location</a>
+                    ) : (
+                      <span>No Location Match</span>
+                    )}
+                  </div>
+
+                  <div className={styles.reviewFooter}>
+                    <span>{new Date(buyer.last_seen_at).toLocaleString()}</span>
+                    <button onClick={() => deleteReview(buyer.id)}>Delete review</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
