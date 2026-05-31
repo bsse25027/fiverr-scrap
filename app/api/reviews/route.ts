@@ -69,9 +69,12 @@ export async function POST(request: Request) {
   const body = payload as { reviews?: IncomingReview[]; url?: string };
   const sourceUrl = asString(body.url);
   const incomingReviews = Array.isArray(body.reviews) ? body.reviews : [];
-  const rows = incomingReviews
+  const normalizedRows = incomingReviews
     .map((item) => normalizeReview(item, sourceUrl))
     .filter(isReviewRow);
+  const rows = Array.from(
+    new Map(normalizedRows.map((row) => [row.username.toLowerCase(), row])).values()
+  );
 
   if (!rows.length) {
     return NextResponse.json(
@@ -95,6 +98,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     received: incomingReviews.length,
+    deduped: rows.length,
     saved: data?.length ?? rows.length
   }, { headers: corsHeaders });
 }

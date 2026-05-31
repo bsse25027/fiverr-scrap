@@ -15,7 +15,7 @@
   const MAX_CLICKS = 20;
   const DELAY_MS = 2500;
   const REQUIRE_BUYER_PROFILE_IMAGE = true;
-  const DASHBOARD_POST_URL = "http://localhost:3000/api/reviews";
+  const DASHBOARD_POST_URL = "https://fiverr-scrap.vercel.app/api/reviews";
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const clean = (value) => (value || "").replace(/\s+/g, " ").trim();
@@ -213,6 +213,11 @@
     reviews: extractReviews(),
   };
 
+  result.reviews = [
+    ...new Map(
+      result.reviews.map((review) => [String(review.username || "").toLowerCase(), review])
+    ).values(),
+  ];
   result.count = result.reviews.length;
 
   const json = JSON.stringify(result, null, 2);
