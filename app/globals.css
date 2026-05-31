@@ -1,0 +1,31 @@
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --line: #d9dee7;
+  --text: #171a1f;
+  --muted: #667085;
+  --green: #1dbf73;
+  --blue: #2f5fd0;
+  --red: #b42318;
+  --shadow: 0 14px 34px rgba(18, 28, 45, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, Segoe UI, Arial, sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+}
