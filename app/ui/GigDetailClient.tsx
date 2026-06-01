@@ -66,11 +66,43 @@ function linkedinLocationUrl(username: string, country: string | null) {
   return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(username)}&origin=FACETED_SEARCH&geoUrn=${encodeURIComponent(JSON.stringify([geoUrn]))}`;
 }
 
+function parseReviewDetails(buyer: Buyer) {
+  const original = buyer.review || "";
+  const usernamePrefix = new RegExp(`^${buyer.username[0] || ""}${buyer.username}`, "i");
+  const country = buyer.country || "";
+  const ageMatch = original.match(/(\d+\s+(?:day|days|week|weeks|month|months|year|years)\s+ago)/i);
+  const priceMatch = original.match(/((?:Up to\s+)?\$\d[\d,]*(?:\s*-\s*\$\d[\d,]*)?(?:\s+and above)?)(?=Price)/i);
+  const durationMatch = original.match(/Price\s*([^$]*?)(?=Duration|$)/i);
+  const repeatClient = /Repeat Client/i.test(original);
+
+  let reviewText = original
+    .replace(usernamePrefix, "")
+    .replace(new RegExp(buyer.username, "ig"), "")
+    .replace(/Repeat Client/ig, "")
+    .replace(country, "")
+    .replace(ageMatch?.[0] || "", "")
+    .replace(priceMatch?.[0] || "", "")
+    .replace(/Price/ig, "")
+    .replace(durationMatch?.[1] || "", "")
+    .replace(/Duration/ig, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!reviewText) reviewText = original || "No review text captured.";
+
+  return {
+    reviewText,
+    age: ageMatch?.[1] || null,
+    price: priceMatch?.[1] || null,
+    duration: durationMatch?.[1]?.trim() || null,
+    repeatClient
+  };
+}
+
 export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; initialBuyers: Buyer[] }) {
   const [buyers, setBuyers] = useState(initialBuyers);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [loadMedia, setLoadMedia] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const filteredBuyers = useMemo(() => {
@@ -131,16 +163,13 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
           <p>{gig.seller_username || "Unknown seller"} - {buyers.length} saved buyer reviews</p>
         </div>
         <div className={styles.detailTopActions}>
-          <button className={loadMedia ? styles.mediaToggleOn : styles.mediaToggle} onClick={() => setLoadMedia((value) => !value)}>
-            {loadMedia ? "Media on" : "Load media"}
-          </button>
           <span className={isPending ? styles.savingBadge : styles.liveBadge}>{isPending ? "Saving" : "Live"}</span>
         </div>
       </header>
 
       <section className={styles.gigDetailHero}>
         <div className={styles.heroMedia}>
-          {loadMedia && gig.gig_image_url ? (
+          {gig.gig_image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={gig.gig_image_url} alt={getTitle(gig)} />
           ) : (
@@ -151,7 +180,7 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
         <div className={styles.heroBody}>
           <div className={styles.sellerRowLarge}>
             <div className={styles.avatarLarge}>
-              {loadMedia && gig.seller_profile_image_url ? (
+              {gig.seller_profile_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={gig.seller_profile_image_url} alt={gig.seller_username || "Seller"} />
               ) : (
@@ -233,28 +262,57 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
           <div className={styles.reviewGrid}>
             {filteredBuyers.map((buyer) => {
               const locationUrl = linkedinLocationUrl(buyer.username, buyer.country);
+              const details = parseReviewDetails(buyer);
 
               return (
                 <article key={buyer.id} className={buyer.done ? styles.reviewCardDone : styles.reviewCard}>
                   <div className={styles.reviewHead}>
                     <div className={styles.buyerAvatar}>
-                      {loadMedia && buyer.profile_image_url ? (
+                      {buyer.profile_image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={buyer.profile_image_url} alt={buyer.username} />
                       ) : (
                         getInitials(buyer.username)
                       )}
                     </div>
-                    <div>
+                    <div className={styles.reviewIdentity}>
                       <h3>{buyer.username}</h3>
-                      <p>{[buyer.country, buyer.rating ? `${buyer.rating} stars` : ""].filter(Boolean).join(" - ")}</p>
+                      <p>{buyer.country || "Unknown country"}</p>
                     </div>
                     <button className={buyer.done ? styles.doneButton : styles.markButton} onClick={() => toggleDone(buyer.id, !buyer.done)}>
                       {buyer.done ? "Done" : "Mark done"}
                     </button>
                   </div>
 
-                  <p className={styles.reviewText}>{buyer.review || "No review text captured."}</p>
+                  <div className={styles.reviewMetaGrid}>
+                    <div className={styles.reviewMetaItem}>
+                      <span>Rating</span>
+                      <strong>{buyer.rating ? `${buyer.rating}/5` : "-"}</strong>
+                    </div>
+                    <div className={styles.reviewMetaItem}>
+                      <span>Price</span>
+                      <strong>{details.price || "-"}</strong>
+                    </div>
+                    <div className={styles.reviewMetaItem}>
+                      <span>Duration</span>
+                      <strong>{details.duration || "-"}</strong>
+                    </div>
+                    <div className={styles.reviewMetaItem}>
+                      <span>When</span>
+                      <strong>{details.age || "-"}</strong>
+                    </div>
+                  </div>
+
+                  <div className={styles.reviewFlags}>
+                    {details.repeatClient ? <span>Repeat client</span> : null}
+                    {buyer.done ? <span>Marked done</span> : <span>Needs review</span>}
+                    {buyer.country ? <span>{buyer.country}</span> : null}
+                  </div>
+
+                  <div className={styles.reviewQuote}>
+                    <span className={styles.quoteMark}>"</span>
+                    <p>{details.reviewText}</p>
+                  </div>
 
                   <div className={styles.actionGrid}>
                     <a href={lensUrl(buyer.profile_image_url)} target="_blank" rel="noopener noreferrer">Google Lens</a>

@@ -33,7 +33,6 @@ export default function DashboardClient({
   const [gigs, setGigs] = useState(initialGigs);
   const [buyers, setBuyers] = useState(initialBuyers);
   const [query, setQuery] = useState("");
-  const [loadMedia, setLoadMedia] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,9 +95,6 @@ export default function DashboardClient({
           <h1>Fiverr gigs</h1>
           <p className={styles.headerText}>Review every saved gig separately, then open a gig to inspect its details and buyers.</p>
         </div>
-        <button className={loadMedia ? styles.mediaToggleOn : styles.mediaToggle} onClick={() => setLoadMedia((value) => !value)}>
-          {loadMedia ? "Media on" : "Load media"}
-        </button>
       </header>
 
       <section className={styles.metricStrip}>
@@ -146,7 +142,7 @@ export default function DashboardClient({
             return (
               <Link key={gig.gig_key} className={styles.gigCard} href={`/gigs/${encodeURIComponent(gig.gig_key)}`}>
                 <div className={styles.gigImage}>
-                  {loadMedia && gig.gig_image_url ? (
+                  {gig.gig_image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={gig.gig_image_url} alt={getTitle(gig)} />
                   ) : (
@@ -165,7 +161,7 @@ export default function DashboardClient({
 
                   <div className={styles.sellerRow}>
                     <div className={styles.avatar}>
-                      {loadMedia && gig.seller_profile_image_url ? (
+                      {gig.seller_profile_image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={gig.seller_profile_image_url} alt={gig.seller_username || "Seller"} />
                       ) : (

@@ -424,10 +424,10 @@
 .reviewCard,
 .reviewCardDone {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 14px;
+  padding: 16px;
   background: var(--surface);
 }
 
@@ -443,6 +443,10 @@
   align-items: center;
 }
 
+.reviewIdentity {
+  min-width: 0;
+}
+
 .reviewHead h3 {
   margin: 0;
   color: #101828;
@@ -454,6 +458,52 @@
   margin: 3px 0 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+.reviewMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reviewMetaItem {
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 10px;
+  min-width: 0;
+}
+
+.reviewMetaItem span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.reviewMetaItem strong {
+  display: block;
+  margin-top: 4px;
+  color: #101828;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.reviewFlags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.reviewFlags span {
+  border: 1px solid #dbe7ff;
+  border-radius: 999px;
+  background: #f4f7ff;
+  color: #1d4ed8;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 850;
 }
 
 .markButton,
@@ -473,7 +523,8 @@
   color: white;
 }
 
-.reviewText {
+.reviewText,
+.reviewQuote {
   margin: 0;
   border: 1px solid #edf0f5;
   border-radius: 8px;
@@ -482,6 +533,31 @@
   color: #344054;
   line-height: 1.6;
   overflow-wrap: anywhere;
+}
+
+.reviewQuote {
+  position: relative;
+  padding: 16px 16px 16px 38px;
+  background: linear-gradient(180deg, #fbfcfe, #f8fafc);
+}
+
+.reviewQuote p {
+  margin: 0;
+  color: #273142;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.quoteMark {
+  position: absolute;
+  left: 14px;
+  top: 6px;
+  color: var(--green);
+  font-family: Georgia, serif;
+  font-size: 34px;
+  line-height: 1;
+  opacity: 0.55;
 }
 
 .actionGrid {
@@ -570,7 +646,8 @@
   }
 
   .heroMetrics,
-  .actionGrid {
+  .actionGrid,
+  .reviewMetaGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
