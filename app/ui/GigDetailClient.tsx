@@ -109,6 +109,7 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
     const q = query.trim().toLowerCase();
 
     return buyers.filter((buyer) => {
+      if (buyer.archived) return false;
       if (filter === "done" && !buyer.done) return false;
       if (filter === "todo" && buyer.done) return false;
       if (!q) return true;
@@ -121,12 +122,14 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
     });
   }, [buyers, filter, query]);
 
-  const doneCount = buyers.filter((buyer) => buyer.done).length;
-  const pendingCount = buyers.length - doneCount;
-  const avgRating = buyers.length
-    ? buyers.reduce((sum, buyer) => sum + Number(buyer.rating || 0), 0) / buyers.length
+  const activeBuyers = buyers.filter((buyer) => !buyer.archived);
+  const doneCount = activeBuyers.filter((buyer) => buyer.done).length;
+  const pendingCount = activeBuyers.length - doneCount;
+  const avgRating = activeBuyers.length
+    ? activeBuyers.reduce((sum, buyer) => sum + Number(buyer.rating || 0), 0) / activeBuyers.length
     : 0;
-  const countries = new Set(buyers.map((buyer) => buyer.country).filter(Boolean)).size;
+  const countries = new Set(activeBuyers.map((buyer) => buyer.country).filter(Boolean)).size;
+  const archivedCount = buyers.length - activeBuyers.length;
 
   function toggleDone(id: number, done: boolean) {
     setBuyers((current) => current.map((buyer) => buyer.id === id ? { ...buyer, done } : buyer));
@@ -154,13 +157,47 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
     });
   }
 
+  function archiveReview(id: number) {
+    const note = window.prompt("Optional archive note for this review:", "")?.trim() || "";
+    setBuyers((current) =>
+      current.map((buyer) =>
+        buyer.id === id
+          ? {
+              ...buyer,
+              archived: true,
+              archive_note: note || null,
+              archived_at: new Date().toISOString()
+            }
+          : buyer
+      )
+    );
+
+    startTransition(async () => {
+      const response = await fetch(`/api/reviews/item/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ archived: true, archiveNote: note })
+      });
+
+      if (!response.ok) {
+        setBuyers((current) =>
+          current.map((buyer) =>
+            buyer.id === id
+              ? { ...buyer, archived: false, archive_note: null, archived_at: null }
+              : buyer
+          )
+        );
+      }
+    });
+  }
+
   return (
     <main className={styles.pageShell}>
       <header className={styles.detailTopbar}>
         <div>
           <Link className={styles.backLink} href="/">Back to gigs</Link>
           <h1>{getTitle(gig)}</h1>
-          <p>{gig.seller_username || "Unknown seller"} - {buyers.length} saved buyer reviews</p>
+          <p>{gig.seller_username || "Unknown seller"} - {activeBuyers.length} active reviews, {archivedCount} archived</p>
         </div>
         <div className={styles.detailTopActions}>
           <span className={isPending ? styles.savingBadge : styles.liveBadge}>{isPending ? "Saving" : "Live"}</span>
@@ -196,7 +233,7 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
           <div className={styles.heroMetrics}>
             <div>
               <span>Reviews</span>
-              <strong>{buyers.length}</strong>
+              <strong>{activeBuyers.length}</strong>
             </div>
             <div>
               <span>Done</span>
@@ -205,6 +242,10 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
             <div>
               <span>Pending</span>
               <strong>{pendingCount}</strong>
+            </div>
+            <div>
+              <span>Archived</span>
+              <strong>{archivedCount}</strong>
             </div>
             <div>
               <span>Countries</span>
@@ -233,7 +274,7 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
         <div className={styles.toolbar}>
           <div>
             <h2>Reviews for this gig</h2>
-            <p>{filteredBuyers.length} visible from {buyers.length} saved</p>
+            <p>{filteredBuyers.length} visible from {activeBuyers.length} active. Archived reviews live in the archive folder.</p>
           </div>
           <input
             value={query}
@@ -327,7 +368,10 @@ export default function GigDetailClient({ gig, initialBuyers }: { gig: Gig; init
 
                   <div className={styles.reviewFooter}>
                     <span>{new Date(buyer.last_seen_at).toLocaleString()}</span>
-                    <button onClick={() => deleteReview(buyer.id)}>Delete review</button>
+                    <div className={styles.footerActions}>
+                      <button onClick={() => archiveReview(buyer.id)}>Archive</button>
+                      <button onClick={() => deleteReview(buyer.id)}>Delete review</button>
+                    </div>
                   </div>
                 </article>
               );

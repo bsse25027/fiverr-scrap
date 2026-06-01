@@ -18,6 +18,7 @@ export default async function Page() {
     supabaseAdmin
       .from("fiverr_review_buyers")
       .select("*")
+      .eq("archived", false)
       .order("last_seen_at", { ascending: false })
   ]);
 
