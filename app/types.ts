@@ -9,6 +9,9 @@ export type Buyer = {
   gig_url: string | null;
   source_url: string | null;
   done: boolean;
+  archived: boolean;
+  archive_note: string | null;
+  archived_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
 };

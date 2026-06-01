@@ -6,15 +6,41 @@ export async function PATCH(
   context: { params: { id: string } }
 ) {
   const id = Number(context.params.id);
-  const body = (await request.json().catch(() => ({}))) as { done?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    done?: unknown;
+    archived?: unknown;
+    archiveNote?: unknown;
+    archive_note?: unknown;
+  };
 
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "Invalid review id" }, { status: 400 });
   }
 
+  const updates: Record<string, unknown> = {
+    last_seen_at: new Date().toISOString()
+  };
+
+  if ("done" in body) {
+    updates.done = Boolean(body.done);
+  }
+
+  if ("archived" in body) {
+    const archived = Boolean(body.archived);
+    const note = typeof body.archiveNote === "string"
+      ? body.archiveNote.trim()
+      : typeof body.archive_note === "string"
+        ? body.archive_note.trim()
+        : "";
+
+    updates.archived = archived;
+    updates.archive_note = archived ? note || null : null;
+    updates.archived_at = archived ? new Date().toISOString() : null;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("fiverr_review_buyers")
-    .update({ done: Boolean(body.done), last_seen_at: new Date().toISOString() })
+    .update(updates)
     .eq("id", id)
     .select()
     .single();
