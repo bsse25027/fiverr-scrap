@@ -286,29 +286,80 @@
     return clone;
   }
 
-  function getBuyerProfileImageUrl(reviewEl) {
+  function isBuyerProfileImage(src) {
+    if (!src) return false;
+    if (/general_assets\/flags|\/flags\//i.test(src)) return false;
+    if (/t_clients_thumb|\/gigs\/|company\/logo|portfolio|video|t_main/i.test(src)) return false;
+    return /attachments\/profile\/photo|profile\/photos|\/profile\//i.test(src);
+  }
+
+  function getImageScore(image, reviewEl, username, sellerResponseTop) {
+    const src = image.currentSrc || image.src || "";
+    if (!isBuyerProfileImage(src)) return -9999;
+
+    const reviewRect = reviewEl.getBoundingClientRect();
+    const rect = image.getBoundingClientRect();
+    const distanceFromReviewTop = rect.top - reviewRect.top;
+    if (distanceFromReviewTop < -10 || rect.top >= sellerResponseTop) return -9999;
+
+    let score = 0;
+    const figure = image.closest("figure");
+    const titledParent = image.closest("[title]");
+    const title = clean(figure?.getAttribute("title") || titledParent?.getAttribute("title"));
+    const alt = clean(image.alt);
+    const aria = clean(image.getAttribute("aria-label"));
+    const nearbyText = clean((image.closest("figure, a, div, header") || image).innerText);
+
+    if (username && title.toLowerCase() === username.toLowerCase()) score += 120;
+    if (username && alt.toLowerCase() === username.toLowerCase()) score += 90;
+    if (username && aria.toLowerCase().includes(username.toLowerCase())) score += 60;
+    if (username && nearbyText.toLowerCase().includes(username.toLowerCase())) score += 45;
+    if (figure) score += 25;
+    if (/attachments\/profile\/photo/i.test(src)) score += 20;
+    if (distanceFromReviewTop <= 120) score += 35;
+    if (rect.width >= 24 && rect.height >= 24) score += 10;
+    if (rect.width > 140 || rect.height > 140) score -= 25;
+    score -= Math.max(0, distanceFromReviewTop) / 12;
+
+    return score;
+  }
+
+  function getBuyerProfileImageUrl(reviewEl, username) {
     const reviewRect = reviewEl.getBoundingClientRect();
     const sellerResponseNode = [...reviewEl.querySelectorAll("*")].find((node) =>
       /seller'?s response/i.test(clean(node.innerText))
     );
     const sellerResponseTop = sellerResponseNode?.getBoundingClientRect().top ?? Infinity;
 
-    const buyerImages = [...reviewEl.querySelectorAll("img")]
-      .filter((image) => {
-        const src = image.currentSrc || image.src || "";
-        if (!src) return false;
-        if (image.classList.contains("country-flag")) return false;
-        if (/general_assets\/flags/i.test(src)) return false;
-        if (!/profile|attachments\/profile|profile\/photos/i.test(src)) return false;
+    const usernameFigure = username
+      ? reviewEl.querySelector(`figure[title="${CSS.escape(username)}"]`)
+      : null;
+    const usernameFigureImage = usernameFigure?.querySelector("img");
+    const usernameFigureSrc = usernameFigureImage?.currentSrc || usernameFigureImage?.src || "";
+    if (isBuyerProfileImage(usernameFigureSrc)) {
+      return normalizeFiverrImageUrl(usernameFigureSrc);
+    }
 
-        const rect = image.getBoundingClientRect();
-        const distanceFromReviewTop = rect.top - reviewRect.top;
+    const scoredImages = [...reviewEl.querySelectorAll("img")]
+      .map((image) => ({
+        image,
+        score: getImageScore(image, reviewEl, username || "", sellerResponseTop),
+      }))
+      .filter((item) => item.score > -9999)
+      .sort((a, b) => b.score - a.score);
 
-        return distanceFromReviewTop >= -5 && distanceFromReviewTop <= 130 && rect.top < sellerResponseTop;
-      })
-      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    const best = scoredImages[0]?.image;
+    const bestSrc = best?.currentSrc || best?.src || null;
 
-    return normalizeFiverrImageUrl(buyerImages[0]?.currentSrc || buyerImages[0]?.src || null);
+    if (!bestSrc) {
+      console.warn("No buyer avatar found for review", {
+        username,
+        reviewTop: reviewRect.top,
+        imageCount: reviewEl.querySelectorAll("img").length,
+      });
+    }
+
+    return normalizeFiverrImageUrl(bestSrc);
   }
 
   function getUsername(reviewEl) {
@@ -366,7 +417,7 @@
       .map((reviewEl, index) => {
         const username = getUsername(reviewEl);
         const review = getReviewText(reviewEl);
-        const profileImageUrl = getBuyerProfileImageUrl(reviewEl);
+        const profileImageUrl = getBuyerProfileImageUrl(reviewEl, username);
         const country = getCountry(reviewEl);
         const rating = getRating(reviewEl);
 

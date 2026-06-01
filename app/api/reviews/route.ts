@@ -49,6 +49,13 @@ async function uploadImageToStorage(remoteUrl: string, pathPrefix: string): Prom
   }
 }
 
+async function buildStoredImageUrl(remoteUrl: string, pathPrefix: string) {
+  const normalizedUrl = normalizeImageUrl(remoteUrl);
+  if (!normalizedUrl) return null;
+
+  return await uploadImageToStorage(normalizedUrl, pathPrefix) ?? normalizedUrl;
+}
+
 type IncomingGig = {
   gigKey?: unknown;
   gig_key?: unknown;
@@ -214,13 +221,12 @@ export async function POST(request: Request) {
   const gig = normalizeGig(body.gig, sourceUrl);
   const incomingReviews = Array.isArray(body.reviews) ? body.reviews : [];
 
-  // Upload gig images to storage before saving
   const [sellerProfileStorageUrl, gigImageStorageUrl] = await Promise.all([
     gig.seller_profile_image_url
-      ? uploadImageToStorage(gig.seller_profile_image_url, `sellers/${gig.gig_key}`)
+      ? buildStoredImageUrl(gig.seller_profile_image_url, `sellers/${gig.gig_key}`)
       : Promise.resolve(null),
     gig.gig_image_url
-      ? uploadImageToStorage(gig.gig_image_url, `gigs/${gig.gig_key}`)
+      ? buildStoredImageUrl(gig.gig_image_url, `gigs/${gig.gig_key}`)
       : Promise.resolve(null),
   ]);
 
@@ -255,30 +261,42 @@ export async function POST(request: Request) {
     );
   }
 
-  // Upload each buyer profile image to storage in parallel
-  const rows = await Promise.all(
-    deduped.map(async (row) => {
-      const storageUrl = await uploadImageToStorage(
-        row.profile_image_url,
-        `buyers/${gig.gig_key}`
-      );
-      return {
-        ...row,
-        profile_image_url: storageUrl ?? row.profile_image_url,
-      };
-    })
-  );
+  const savedRows: Array<{ id: number; username: string; gig_key: string }> = [];
 
-  const { data, error } = await supabaseAdmin
-    .from("fiverr_review_buyers")
-    .upsert(rows, {
-      onConflict: "gig_key,username",
-      ignoreDuplicates: false
-    })
-    .select("id,username,gig_key");
+  for (const row of deduped) {
+    const storedProfileImageUrl = await buildStoredImageUrl(
+      row.profile_image_url,
+      `buyers/${gig.gig_key}/${row.username.toLowerCase()}`
+    );
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
+    const rowToSave = {
+      ...row,
+      profile_image_url: storedProfileImageUrl ?? row.profile_image_url,
+      raw: {
+        ...row.raw,
+        normalizedProfileImageUrl: row.profile_image_url,
+        storedProfileImageUrl: storedProfileImageUrl ?? row.profile_image_url
+      }
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("fiverr_review_buyers")
+      .upsert(rowToSave, {
+        onConflict: "gig_key,username",
+        ignoreDuplicates: false
+      })
+      .select("id,username,gig_key")
+      .single();
+
+    if (error) {
+      return NextResponse.json({
+        error: error.message,
+        failedUsername: row.username,
+        failedProfileImageUrl: row.profile_image_url
+      }, { status: 500, headers: corsHeaders });
+    }
+
+    if (data) savedRows.push(data);
   }
 
   return NextResponse.json({
@@ -290,7 +308,7 @@ export async function POST(request: Request) {
     },
     received: incomingReviews.length,
     deduped: deduped.length,
-    saved: data?.length ?? rows.length
+    saved: savedRows.length
   }, { headers: corsHeaders });
 }
 
