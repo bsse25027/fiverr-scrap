@@ -95,6 +95,7 @@ export default function DashboardClient({
           <h1>Fiverr gigs</h1>
           <p className={styles.headerText}>Review every saved gig separately, then open a gig to inspect its details and buyers.</p>
         </div>
+        <Link className={styles.openGigButton} href="/archive">Archive folder</Link>
       </header>
 
       <section className={styles.metricStrip}>

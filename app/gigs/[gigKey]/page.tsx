@@ -24,6 +24,7 @@ export default async function GigPage({ params }: { params: { gigKey: string } }
       .from("fiverr_review_buyers")
       .select("*")
       .eq("gig_key", gigKey)
+      .eq("archived", false)
       .order("last_seen_at", { ascending: false })
   ]);
 

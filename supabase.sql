@@ -39,6 +39,15 @@ create table if not exists public.fiverr_review_buyers (
 alter table public.fiverr_review_buyers
   add column if not exists gig_key text;
 
+alter table public.fiverr_review_buyers
+  add column if not exists archived boolean not null default false;
+
+alter table public.fiverr_review_buyers
+  add column if not exists archive_note text;
+
+alter table public.fiverr_review_buyers
+  add column if not exists archived_at timestamptz;
+
 update public.fiverr_review_buyers
 set gig_key = 'unknown'
 where gig_key is null;
@@ -79,6 +88,9 @@ create index if not exists fiverr_review_buyers_done_idx
 
 create index if not exists fiverr_review_buyers_gig_key_idx
   on public.fiverr_review_buyers (gig_key);
+
+create index if not exists fiverr_review_buyers_archived_idx
+  on public.fiverr_review_buyers (archived);
 
 alter table public.fiverr_gigs enable row level security;
 alter table public.fiverr_review_buyers enable row level security;

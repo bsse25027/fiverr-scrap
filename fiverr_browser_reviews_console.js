@@ -12,8 +12,8 @@
  */
 
 (async () => {
-  const MAX_CLICKS = 20;
-  const DELAY_MS = 2500;
+  const MAX_CLICKS = 30;
+  const DELAY_MS = 1000;
   const REQUIRE_BUYER_PROFILE_IMAGE = true;
   const DASHBOARD_POST_URL = "https://fiverr-scrap.vercel.app/api/reviews";
 
